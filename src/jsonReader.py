@@ -21,7 +21,6 @@ def reader(responseDir = "modelResponses"):
 
     for entry in os.scandir(responseDir):  
         if entry.is_file():  # check if it's a file
-            print("dsa")
             with open(entry.path, "r") as f:
                 data = json.load(f)
             userInput = data["input"][0]["content"][0]["text"]

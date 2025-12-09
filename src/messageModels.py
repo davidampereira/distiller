@@ -52,8 +52,12 @@ def getMessages(message, fileWrite, responseDir, it=1, files=None):
     if files is not None:
         raise Exception("Attaching files not supported")
         # messages[0]["content"].append(parseFiles(files))
+    count = 0
+    total = len(models) * it
     for model in models:
         for i in range(it):
+            count += 1
+            print(f"{count} / {total}")
             modelResponse = openRouterRequest(model[0], messages)
             modelResponse["input"] = messages
             with open(f"{responseDir}/{fileWrite}_{model[1]}_{i}.json", "w") as f:
