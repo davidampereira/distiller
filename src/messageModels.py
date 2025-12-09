@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+load_dotenv()
 import requests
 import json
 import base64
@@ -49,11 +50,14 @@ def getMessages(message, fileWrite, responseDir, it=1, files=None):
         }
     ]
     if files is not None:
-        messages[0]["content"].append(parseFiles(files))
+        raise Exception("Attaching files not supported")
+        # messages[0]["content"].append(parseFiles(files))
     for model in models:
         for i in range(it):
+            modelResponse = openRouterRequest(model[0], messages)
+            modelResponse["input"] = messages
             with open(f"{responseDir}/{fileWrite}_{model[1]}_{i}.json", "w") as f:
-                json.dump(openRouterRequest(model[0], messages), f, indent=4)
+                json.dump(modelResponse, f, indent=4)
 
 def openRouterRequest(model, message):
     url = "https://openrouter.ai/api/v1/chat/completions"
