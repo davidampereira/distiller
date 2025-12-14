@@ -1,14 +1,9 @@
 import json
 import os
+from datasets import Dataset
 
 def formatter(format):
-    return  f"""
-    <|im_start|>user
-    {format[0]}<|im_end|>
-    <|im_start|>assistant
-    <think>{format[1]}</think>
-    {format[2]}<|im_end|>
-    """
+    return {"user_message": format[0], "chatbot_reasoning": format[1], "chatbot_response": format[2]}
 
 def reader(responseDir = "modelResponses"):
 
