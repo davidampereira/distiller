@@ -56,19 +56,9 @@ def distill(model_name, dataset, modelSaveDir):
             {"role": "assistant", "content": full_assistant_content}
         ]
 
-        inputs = tokenizer.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=False,
-            padding="max_length",
-            truncation=True,
-            max_length=512,
-            return_dict=True
-        )
+        #TODO: make this work right
+        return null
 
-        inputs["labels"] = inputs["input_ids"]
-
-        return inputs
 
     hf_dataset = Dataset.from_list(dataset)
     tokenized = hf_dataset.map(process_data, batched=False)
@@ -120,7 +110,7 @@ def distill(model_name, dataset, modelSaveDir):
     )
 
     trainer.train()
-    trainer.save_model(f"modelSaveDir/adapter")
+    trainer.save_model(f"{modelSaveDir}/adapter")
     print("Model Saved")
     tokenizer.save_pretrained(modelSaveDir)
 

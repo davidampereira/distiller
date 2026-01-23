@@ -8,7 +8,7 @@ def formatter(format):
 def reader(responseDir = "modelResponses"):
 
     if os.path.exists(responseDir) == False:
-        raise Exception(f"{dir} could not be accessed")
+        raise Exception(f"{responseDir} could not be accessed")
     elif os.path.isfile(responseDir):
         raise Exception("Path given is not directory")
 
@@ -19,7 +19,10 @@ def reader(responseDir = "modelResponses"):
             with open(entry.path, "r") as f:
                 data = json.load(f)
             userInput = data["input"][0]["content"][0]["text"]
-            reasoning = data["choices"][0]["message"]["reasoning"]
             response = data["choices"][0]["message"]["content"]
-            messages.append(formatter([userInput, reasoning, response]))
+            if(data["choices"][0]["message"]["reasoning"]):
+                reasoning = data["choices"][0]["message"]["reasoning"]
+                messages.append(formatter([userInput, reasoning, response]))
+            else:
+                messages.append(formatter([userInput, response]))
     return messages

@@ -74,5 +74,11 @@ def openRouterRequest(model, message):
     "messages": message
     }
     
-    response = requests.post(url, headers=headers, json=payload)
-    return response.json()
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+
+        return response.json()
+    except Exception as e:
+        raise(f"{e}")
+
