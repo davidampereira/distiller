@@ -4,6 +4,7 @@
     "file": null
   },
   "training": {
+    "response_template": "<|assistant|>",
     "model": "Qwen/Qwen3-4B",
     "output_dir": "distilledModel",
     "num_epochs": 3,

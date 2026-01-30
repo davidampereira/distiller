@@ -6,6 +6,7 @@ import os
 import torch
 from datasets import Dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from trl import DataCollatorForCompletionOnlyLM
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -75,8 +76,16 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
             {"role": "user", "content": example["user_message"]},
             {"role": "assistant", "content": full_assistant_content},
         ]
+
+        tokenized = tokenizer.apply_chat_template(
+            messages,
+            tokenize=True,
+            return_dict=True,
+            #return_tensors="pt"
+        )
+
         # TODO: Implement proper tokenization
-        return None
+        return tokenized
 
     hf_dataset = Dataset.from_list(dataset)
     tokenized = hf_dataset.map(process_data, batched=False)
@@ -124,11 +133,17 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
     model.gradient_checkpointing_enable()
     logger.info("Model prepared for LoRA training")
 
+    data_collator = DataCollatorForCompletionOnlyLM(
+        response_template=get("training.response_template", "<|think|>"),
+        tokenizer=tokenizer
+    )
+
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=train,
         eval_dataset=test,
+        data_collator=data_collator
     )
 
     logger.info("Starting training...")
