@@ -1,0 +1,38 @@
+{
+  "logging": {
+    "level": "INFO",
+    "file": null
+  },
+  "training": {
+    "model": "Qwen/Qwen3-4B",
+    "output_dir": "distilledModel",
+    "num_epochs": 3,
+    "batch_size": 1,
+    "eval_batch_size": 1,
+    "gradient_accumulation_steps": 8,
+    "learning_rate": 2e-5,
+    "warmup_ratio": 0.03,
+    "max_grad_norm": 0.3,
+    "fp16": true,
+    "logging_steps": 50,
+    "lora": {
+      "r": 8,
+      "alpha": 16,
+      "dropout": 0.05,
+      "target_modules": ["q_proj", "v_proj"]
+    }
+  },
+  "data_collection": {
+    "conversations_dir": "conversations",
+    "iterations_per_model": 10,
+    "models": [
+      {"id": "tngtech/deepseek-r1t2-chimera:free", "name": "deepseek"},
+      {"id": "z-ai/glm-4.5-air:free", "name": "glm"}
+    ]
+  },
+  "scraping": {
+    "output_file": "scraped_docs.txt",
+    "headless": true,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+  }
+}

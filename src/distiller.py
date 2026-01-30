@@ -1,39 +1,59 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, BitsAndBytesConfig
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-import numpy as np
-from datasets import Dataset
-import evaluate
-import os
-import torch
+"""Model distillation with LoRA and 4-bit quantization."""
+
 import gc
+import os
+
+import torch
+from datasets import Dataset
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    Trainer,
+    TrainingArguments,
+)
+
+from src.config import get
+from src.logger import get_logger
 
 os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
-metric = evaluate.load("accuracy")
 
-def distill(model_name, dataset, modelSaveDir):
+logger = get_logger("finer.distiller")
 
-    if os.path.exists(modelSaveDir) == False:
+
+def distill(model_name: str, dataset: list, model_save_dir: str):
+    """Distill knowledge into a smaller model using LoRA fine-tuning.
+
+    Args:
+        model_name: HuggingFace model identifier.
+        dataset: List of conversation dictionaries.
+        model_save_dir: Directory to save the fine-tuned model.
+    """
+    if not os.path.exists(model_save_dir):
         try:
-            os.mkdir(modelSaveDir)
+            os.mkdir(model_save_dir)
+            logger.info(f"Created output directory: {model_save_dir}")
         except Exception as e:
-            print("Couldn't create given directory")
-            print(e)
-            exit()
-    elif os.path.isfile(modelSaveDir):
-        raise Exception("Path given is not directory")
+            logger.error(f"Couldn't create directory: {e}")
+            raise
+    elif os.path.isfile(model_save_dir):
+        raise ValueError("Path given is not a directory")
 
-    # Clear any existing GPU memory
+    # Clear GPU memory
     gc.collect()
     torch.cuda.empty_cache()
-    
-    # 4-bit quantization config for memory efficiency
+    logger.debug("Cleared GPU memory cache")
+
+    # 4-bit quantization config
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,  # Nested quantization for more memory savings
+        bnb_4bit_use_double_quant=True,
     )
 
+    logger.info(f"Loading model: {model_name}")
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         quantization_config=bnb_config,
@@ -44,21 +64,19 @@ def distill(model_name, dataset, modelSaveDir):
     )
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     def process_data(example):
-        full_assistant_content = f"<think>\n{example['chatbot_reasoning']}\n</think>\n{example['chatbot_response']}"
-
-        messages = [
+        full_assistant_content = (
+            f"<think>\n{example['chatbot_reasoning']}\n</think>\n{example['chatbot_response']}"
+        )
+        messages = [  # noqa: F841 - TODO: use this for tokenization
             {"role": "user", "content": example["user_message"]},
-            {"role": "assistant", "content": full_assistant_content}
+            {"role": "assistant", "content": full_assistant_content},
         ]
-
-        #TODO: make this work right
-        return null
-
+        # TODO: Implement proper tokenization
+        return None
 
     hf_dataset = Dataset.from_list(dataset)
     tokenized = hf_dataset.map(process_data, batched=False)
@@ -66,54 +84,62 @@ def distill(model_name, dataset, modelSaveDir):
     divided = tokenized.train_test_split(test_size=0.1, seed=42)
     train = divided["train"]
     test = divided["test"]
+    logger.info(f"Dataset split: {len(train)} train, {len(test)} test samples")
 
-    # LoRA configuration - reduced rank for memory efficiency
+    # LoRA configuration from config
+    lora_config = get("training.lora", {})
     peft_config = LoraConfig(
-        r=4,  # Reduced rank for lower memory usage
-        lora_alpha=8,  # Scaling factor
-        lora_dropout=0.1,  # Dropout rate
-        target_modules=["q_proj", "v_proj"],  # Only essential attention layers
-        bias="none",  # No bias term
-        task_type="CAUSAL_LM"  # Task type
+        r=lora_config.get("r", 4),
+        lora_alpha=lora_config.get("alpha", 8),
+        lora_dropout=lora_config.get("dropout", 0.1),
+        target_modules=lora_config.get("target_modules", ["q_proj", "v_proj"]),
+        bias="none",
+        task_type="CAUSAL_LM",
     )
 
-    trainingArgs = TrainingArguments(
-        output_dir=modelSaveDir,
-        num_train_epochs=3,
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
-        gradient_accumulation_steps=8,  # Increased for memory efficiency
+    # Training arguments from config
+    training_args = TrainingArguments(
+        output_dir=model_save_dir,
+        num_train_epochs=get("training.num_epochs", 3),
+        per_device_train_batch_size=get("training.batch_size", 1),
+        per_device_eval_batch_size=get("training.eval_batch_size", 1),
+        gradient_accumulation_steps=get("training.gradient_accumulation_steps", 8),
         eval_strategy="epoch",
         save_strategy="epoch",
         logging_strategy="steps",
-        logging_steps=50,
-        learning_rate=2e-5,
-        fp16=True,
-        optim="paged_adamw_8bit",  # Use 8-bit optimizer for less memory
-        max_grad_norm=0.3,
-        warmup_ratio=0.03,
+        logging_steps=get("training.logging_steps", 50),
+        learning_rate=get("training.learning_rate", 2e-5),
+        fp16=get("training.fp16", True),
+        optim="paged_adamw_8bit",
+        max_grad_norm=get("training.max_grad_norm", 0.3),
+        warmup_ratio=get("training.warmup_ratio", 0.03),
         lr_scheduler_type="cosine",
         push_to_hub=False,
-        dataloader_pin_memory=False,  # Reduce memory pressure
+        dataloader_pin_memory=False,
     )
 
-    # Prepare model for k-bit training
+    # Prepare model for training
     model = prepare_model_for_kbit_training(model)
     model = get_peft_model(model, peft_config)
     model.gradient_checkpointing_enable()
+    logger.info("Model prepared for LoRA training")
 
     trainer = Trainer(
         model=model,
-        args=trainingArgs,
-        train_dataset = train,
-        eval_dataset = test,
+        args=training_args,
+        train_dataset=train,
+        eval_dataset=test,
     )
 
+    logger.info("Starting training...")
     trainer.train()
-    trainer.save_model(f"{modelSaveDir}/adapter")
-    print("Model Saved")
-    tokenizer.save_pretrained(modelSaveDir)
+
+    trainer.save_model(f"{model_save_dir}/adapter")
+    logger.info(f"Adapter saved to {model_save_dir}/adapter")
+
+    tokenizer.save_pretrained(model_save_dir)
 
     final_model = trainer.model.merge_and_unload()
-    final_model.save_pretrained(modelSaveDir)
-    tokenizer.save_pretrained(modelSaveDir)
+    final_model.save_pretrained(model_save_dir)
+    tokenizer.save_pretrained(model_save_dir)
+    logger.info(f"Final model saved to {model_save_dir}")

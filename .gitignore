@@ -14,3 +14,10 @@ wheels/
 *qwen*
 conversations
 distilledModel
+
+# Logs
+logs/
+*.log
+
+# Local config overrides
+config.local.json
