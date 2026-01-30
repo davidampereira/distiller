@@ -23,6 +23,7 @@ dependencies = [
     "selenium>=4.36.0",
     "torch>=2.8.0",
     "transformers>=4.57.3",
+    "trl>=0.27.1",
     "webdriver-manager>=4.0.2",
 ]
 
