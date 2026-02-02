@@ -5,16 +5,9 @@ import os
 
 import torch
 from datasets import Dataset
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig
 from trl.trainer.sft_config import SFTConfig
 from trl.trainer.sft_trainer import SFTTrainer
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    BitsAndBytesConfig,
-    Trainer,
-    TrainingArguments,
-)
 
 from src.config import get
 from src.logger import get_logger
@@ -47,55 +40,18 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
     torch.cuda.empty_cache()
     logger.debug("Cleared GPU memory cache")
 
-    # 4-bit quantization config
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
-    )
-
-    logger.info(f"Loading model: {model_name}")
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        quantization_config=bnb_config,
-        device_map="auto",
-        dtype=torch.float16,
-        low_cpu_mem_usage=True,
-        trust_remote_code=True,
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    def process_data(example):
-        full_assistant_content = (
-            f"<think>\n{example['chatbot_reasoning']}\n</think>\n{example['chatbot_response']}"
-        )
-        messages = [ 
-            {"role": "user", "content": example["user_message"]},
-            {"role": "assistant", "content": full_assistant_content},
-        ]
-
-        tokenized = tokenizer.apply_chat_template(
-            messages,
-            tokenize=True,
-            return_dict=True,
-        )
-
-        return tokenized
 
     hf_dataset = Dataset.from_list(dataset)
-    tokenized = hf_dataset.map(process_data, batched=False)
 
-    divided = tokenized.train_test_split(test_size=0.1, seed=42)
+    divided = hf_dataset.train_test_split(test_size=0.1, seed=42)
     train = divided["train"]
     test = divided["test"]
     logger.info(f"Dataset split: {len(train)} train, {len(test)} test samples")
 
     # LoRA configuration from config
     lora_config = get("training.lora", {})
+
+    
     peft_config = LoraConfig(
         r=lora_config.get("r", 4),
         lora_alpha=lora_config.get("alpha", 8),
@@ -105,8 +61,10 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
         task_type="CAUSAL_LM",
     )
 
+
     # Training arguments from config
-    training_args = TrainingArguments(
+    training_args = SFTConfig(
+        assistant_only_loss = True,
         output_dir=model_save_dir,
         num_train_epochs=get("training.num_epochs", 3),
         per_device_train_batch_size=get("training.batch_size", 1),
@@ -126,12 +84,6 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
         dataloader_pin_memory=False,
     )
 
-    # Prepare model for training
-    model = prepare_model_for_kbit_training(model)
-    model = get_peft_model(model, peft_config)
-    model.gradient_checkpointing_enable()
-    logger.info("Model prepared for LoRA training")
-
     trainer = SFTTrainer(
         model_name,
         args=training_args,
@@ -146,9 +98,4 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
     trainer.save_model(f"{model_save_dir}/adapter")
     logger.info(f"Adapter saved to {model_save_dir}/adapter")
 
-    tokenizer.save_pretrained(model_save_dir)
-
-    final_model = trainer.model.merge_and_unload()
-    final_model.save_pretrained(model_save_dir)
-    tokenizer.save_pretrained(model_save_dir)
     logger.info(f"Final model saved to {model_save_dir}")

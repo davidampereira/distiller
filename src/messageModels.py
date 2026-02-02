@@ -154,3 +154,7 @@ def openrouter_request(model: str, message: list) -> dict:
 # Backwards compatibility aliases
 openRouterRequest = openrouter_request
 parseFiles = parse_files
+
+
+if __name__ == "__main__":
+    get_messages()
