@@ -13,22 +13,12 @@ def main():
         log_file=get("logging.file"),
     )
 
-    # Load configuration
-    messages = [
-        "What are good ways to greet someone formally?",
-        "How can I make someone feel welcome?",
-        "What are friendly ways to salute someone?",
-    ]
+
+    
     directory = get("data_collection.conversations_dir", "conversations")
-    iterations = get("data_collection.iterations_per_model", 10)
     model_save_dir = get("training.output_dir", "distilledModel")
     model = get("training.model", "Qwen/Qwen3-4B")
-
-    total_messages = len(messages)
-
-    for count, message in enumerate(messages, 1):
-        logger.info(f"Processing message {count}/{total_messages}: {message[:50]}...")
-        messageModels.getMessages(message, f"nr_{count - 1}", directory, iterations)
+    messageModels.get_messages()
 
     logger.info("Formatting conversation data...")
     formatted = jsonReader.reader(directory)

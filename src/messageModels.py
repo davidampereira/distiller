@@ -40,12 +40,25 @@ def parse_files(files: list[str]) -> dict:
     return message
 
 
-def get_messages(
+def get_messages():
+    messagesloc = get("data_collection.questionsloc", "messages/questions.txt")
+    iterations = get("data_collection.iterations_per_model", 10)
+    count = 0
+
+    with open(messagesloc, "r") as f:
+        while True:
+            message = f.readline()
+            if(message == ""):
+                break
+            message = message.strip()
+            get_response(message, f"{count}", iterations)
+            count += 1
+
+
+def get_response(
     message: str,
     file_write: str,
-    response_dir: str,
     iterations: int = 1,
-    files: list[str] | None = None,
 ):
     """Collect responses from multiple LLMs for a given message.
 
@@ -56,6 +69,7 @@ def get_messages(
         iterations: Number of responses per model.
         files: Optional files to attach (not currently supported).
     """
+    response_dir = get("data_collection.conversation_dir", "conversations")
     if not os.path.exists(response_dir):
         try:
             os.mkdir(response_dir)
@@ -67,8 +81,6 @@ def get_messages(
     if os.path.isfile(response_dir):
         raise ValueError("Path given is not a directory")
 
-    if files is not None:
-        raise NotImplementedError("Attaching files not supported")
 
     # Get models from config
     models = get(
@@ -140,6 +152,5 @@ def openrouter_request(model: str, message: list) -> dict:
 
 
 # Backwards compatibility aliases
-getMessages = get_messages
 openRouterRequest = openrouter_request
 parseFiles = parse_files

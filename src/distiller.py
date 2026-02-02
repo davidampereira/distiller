@@ -6,7 +6,8 @@ import os
 import torch
 from datasets import Dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from trl import DataCollatorForCompletionOnlyLM
+from trl.trainer.sft_config import SFTConfig
+from trl.trainer.sft_trainer import SFTTrainer
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -72,7 +73,7 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
         full_assistant_content = (
             f"<think>\n{example['chatbot_reasoning']}\n</think>\n{example['chatbot_response']}"
         )
-        messages = [  # noqa: F841 - TODO: use this for tokenization
+        messages = [ 
             {"role": "user", "content": example["user_message"]},
             {"role": "assistant", "content": full_assistant_content},
         ]
@@ -81,10 +82,8 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
             messages,
             tokenize=True,
             return_dict=True,
-            #return_tensors="pt"
         )
 
-        # TODO: Implement proper tokenization
         return tokenized
 
     hf_dataset = Dataset.from_list(dataset)
@@ -133,17 +132,12 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
     model.gradient_checkpointing_enable()
     logger.info("Model prepared for LoRA training")
 
-    data_collator = DataCollatorForCompletionOnlyLM(
-        response_template=get("training.response_template", "<|think|>"),
-        tokenizer=tokenizer
-    )
-
-    trainer = Trainer(
-        model=model,
+    trainer = SFTTrainer(
+        model_name,
         args=training_args,
         train_dataset=train,
         eval_dataset=test,
-        data_collator=data_collator
+        peft_config=peft_config
     )
 
     logger.info("Starting training...")
