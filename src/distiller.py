@@ -1,5 +1,3 @@
-"""Model distillation with LoRA and 4-bit quantization."""
-
 import gc
 import os
 
@@ -8,6 +6,7 @@ from datasets import Dataset
 from peft import LoraConfig
 from trl.trainer.sft_config import SFTConfig
 from trl.trainer.sft_trainer import SFTTrainer
+from transformers import BitsAndBytesConfig
 
 from src.config import get
 from src.logger import get_logger
@@ -48,10 +47,17 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
     test = divided["test"]
     logger.info(f"Dataset split: {len(train)} train, {len(test)} test samples")
 
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
+    )
+
     # LoRA configuration from config
     lora_config = get("training.lora", {})
 
-    
+
     peft_config = LoraConfig(
         r=lora_config.get("r", 4),
         lora_alpha=lora_config.get("alpha", 8),
@@ -65,6 +71,7 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
     # Training arguments from config
     training_args = SFTConfig(
         assistant_only_loss = True,
+        model_init_kwargs={"device_map": "auto", "quantization_config": bnb_config},
         output_dir=model_save_dir,
         num_train_epochs=get("training.num_epochs", 3),
         per_device_train_batch_size=get("training.batch_size", 1),
@@ -97,5 +104,3 @@ def distill(model_name: str, dataset: list, model_save_dir: str):
 
     trainer.save_model(f"{model_save_dir}/adapter")
     logger.info(f"Adapter saved to {model_save_dir}/adapter")
-
-    logger.info(f"Final model saved to {model_save_dir}")
