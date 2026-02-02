@@ -15,13 +15,12 @@ def main():
 
 
     
-    directory = get("data_collection.conversations_dir", "conversations")
     model_save_dir = get("training.output_dir", "distilledModel")
     model = get("training.model", "Qwen/Qwen3-4B")
     messageModels.get_messages()
 
     logger.info("Formatting conversation data...")
-    formatted = jsonReader.reader(directory)
+    formatted = jsonReader.format_start()
 
     logger.info(f"Starting distillation with model: {model}")
     distiller.distill(model, formatted, model_save_dir)

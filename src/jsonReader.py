@@ -3,6 +3,7 @@
 import json
 import os
 
+from src.config import get
 from src.logger import get_logger
 
 logger = get_logger("finer.jsonReader")
@@ -10,20 +11,19 @@ logger = get_logger("finer.jsonReader")
 
 def formatter(format_data: tuple) -> dict:
     """Format raw data into training example dictionary."""
-    if len(format_data) == 3:
-        return {
-            "user_message": format_data[0],
-            "chatbot_reasoning": format_data[1],
-            "chatbot_response": format_data[2],
-        }
-    return {
-        "user_message": format_data[0],
-        "chatbot_reasoning": "",
-        "chatbot_response": format_data[1],
-    }
+    message = {}
+    # if len(format_data) == 3:
+    #     return {
+    #         "role": format_data[0],
+    #         #"chatbot_reasoning": format_data[1],
+    #         "prompt": format_data[2],
+    #     }
+    message["prompt"] = [{"role": "user", "content": format_data[0]}]
+    message["completion"] = [{"role": "assistant", "content": format_data[1]}]
+    return message
 
 
-def reader(response_dir: str = "modelResponses") -> list[dict]:
+def reader(response_dir: str = "conversations") -> list[dict]:
     """Read and parse JSON conversation files from a directory.
 
     Args:
@@ -45,6 +45,7 @@ def reader(response_dir: str = "modelResponses") -> list[dict]:
     messages = []
     file_count = 0
 
+
     for entry in os.scandir(response_dir):
         if entry.is_file() and entry.name.endswith(".json"):
             file_count += 1
@@ -54,12 +55,14 @@ def reader(response_dir: str = "modelResponses") -> list[dict]:
 
                 user_input = data["input"][0]["content"][0]["text"]
                 response = data["choices"][0]["message"]["content"]
-                reasoning = data["choices"][0]["message"].get("reasoning")
+                #reasoning = data["choices"][0]["message"].get("reasoning")
 
-                if reasoning:
-                    messages.append(formatter((user_input, reasoning, response)))
-                else:
-                    messages.append(formatter((user_input, response)))
+                messages.append(formatter((user_input, response)))
+
+                # if reasoning:
+                #     messages.append(formatter((user_input, reasoning, response)))
+                # else:
+                #     messages.append(formatter((user_input, response)))
 
             except (KeyError, IndexError, json.JSONDecodeError) as e:
                 logger.warning(f"Failed to parse {entry.name}: {e}")
@@ -67,3 +70,26 @@ def reader(response_dir: str = "modelResponses") -> list[dict]:
 
     logger.info(f"Loaded {len(messages)} conversations from {file_count} files")
     return messages
+
+
+def format_start() -> list:
+    conversation_path = get("data_collection.conversations_dir", "conversations")
+    formatted_path = get("data_collection.formatted_loc", "formatted/dataset.json")
+    directory_path = formatted_path.split("/")[0]
+    if not os.path.exists(directory_path):
+        try:
+            os.mkdir(directory_path)
+            logger.info(f"Created response directory: {directory_path}")
+        except Exception as e:
+            logger.error(f"Couldn't create directory: {e}")
+            raise
+
+    if os.path.isfile(directory_path):
+        raise ValueError("Path given is not a directory")
+    formatted = reader(conversation_path)
+    with open(formatted_path, "w") as f:
+        json.dump(formatted, f)
+    return formatted
+
+if __name__ == "__main__":
+    format_start()

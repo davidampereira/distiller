@@ -12,6 +12,7 @@ wheels/
 
 messages
 conversations
+formatted
 distilledModel
 
 # Logs
