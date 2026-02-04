@@ -69,7 +69,7 @@ def get_response(
         iterations: Number of responses per model.
         files: Optional files to attach (not currently supported).
     """
-    response_dir = get("data_collection.conversation_dir", "conversations")
+    response_dir = get("data_collection.conversations_dir", "conversations")
     if not os.path.exists(response_dir):
         try:
             os.mkdir(response_dir)

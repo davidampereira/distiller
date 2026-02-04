@@ -75,7 +75,7 @@ def reader(response_dir: str = "conversations") -> list[dict]:
 def format_start() -> list:
     conversation_path = get("data_collection.conversations_dir", "conversations")
     formatted_path = get("data_collection.formatted_loc", "formatted/dataset.json")
-    directory_path = formatted_path.split("/")[0]
+    directory_path = formatted_path.split("/")[0] # TODO: make this not hardcoded
     if not os.path.exists(directory_path):
         try:
             os.mkdir(directory_path)
