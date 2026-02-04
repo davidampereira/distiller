@@ -12,7 +12,7 @@ from src.logger import get_logger
 
 load_dotenv()
 
-logger = get_logger("finer.messageModels")
+logger = get_logger("finer.message_models")
 
 
 def encode_file_to_base64(file: str) -> str:

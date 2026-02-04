@@ -6,7 +6,7 @@ import os
 from src.config import get
 from src.logger import get_logger
 
-logger = get_logger("finer.jsonReader")
+logger = get_logger("finer.json_reader")
 
 
 def formatter(format_data: tuple) -> dict:
